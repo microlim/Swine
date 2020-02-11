@@ -40,10 +40,14 @@ webapi.zip 압축해제후 /var/www/html 아래에 해제한다.
   3. json사용을 위한 패키지 설치
   
   https://github.com/json-c/json-c  설치
-	wget curl.haxx.se/download/curl-7.65.1.tar.gz   다운로드 설치
+  
+  wget curl.haxx.se/download/curl-7.65.1.tar.gz   다운로드 설치
   
   
 	tcpman.cpp 소스내에   ‘eth0’  이더넷 디바이스명칭 확인 후 수정
+	
+	
+ 4. 자세한 설치 참고사항은 개발자가이드(hangul) 참고 
   
   
   
