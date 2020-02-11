@@ -1,0 +1,84 @@
+위 이미지에서 사용된 USB to RS485 통신모듈은 연결시 디바이스 접근 경로는 /dev/ttyUSB0 였으며 이는 사용자 환경에 따라 상이할 수 있습니다 (#>dmesg 명령으로 확인 필요합니다)
+
+우분투 환경에서 아래와 같이 libmodbus 라이브러리를 설치합니다
+
+#>sudo apt-get install libmodbus-dev
+
+아래 예시는 0x03기능코드를 사용하여 센서디바이스로 부터 온습도를 읽고 0x06 기능코드를 사용하여 센서 디바이스 슬레이브 주소를 
+변경후 변경된 슬레이브 주소로 다시 연결한뒤 0x04 기능코드를 사용하여 설정한 슬레이브주소를 읽기를 시도 해볼 수 있습니다
+
+
+
+아래 파일을 modbus_rtu_test.c로 작성후 #>gcc -o modbus_rtu_test modbus_rtu_test.c -lmodbus 로 빌드하여 볼 수 있습니다
+
+실행은 #>sudo modbus_rtu_test 로 관리자 권한으로 수행합니다
+
+
+#include <stdio.h>
+#include <unistd.h>
+#include <string.h>
+#include <stdlib.h>
+#include <errno.h>
+#include <modbus/modbus-rtu.h>
+ 
+int main()
+{
+        modbus_t *ctx;
+ 
+        // libmodbus rtu 컨텍스트 생성
+        ctx = modbus_new_rtu("/dev/ttyUSB0", 9600, 'E', 8, 1);
+        /*
+         * 디바이스 : /dev/ttyXXX
+         * 전송속도 : 9600, 19200, 57600, 115200
+         * 패리티모드 : N (none) / E (even) / O (odd)
+         * 데이터 비트 : 5,6,7 or 8
+         * 스톱 비트 : 1, 2
+        */
+        if (ctx == NULL) {
+                fprintf(stderr, "Unable to create the libmodbus context\n");
+                return -1;
+        }
+ 
+        modbus_set_slave(ctx, 242); // 슬레이브 주소
+        modbus_set_debug(ctx, TRUE); // 디버깅 활성
+ 
+        // 연결
+        if (modbus_connect(ctx) == -1) {
+                fprintf(stderr, "Unable to connect %s\n", modbus_strerror(errno));
+                modbus_free(ctx);
+                return -1;
+        }
+ 
+        uint16_t *read_registers;
+        read_registers = (uint16_t *) malloc(256 * sizeof(uint16_t));
+ 
+        // 0x03 기능 코드 (read holding register)
+        // 0x012C : 주소 / 2 : 읽을 갯수 (예시)
+        modbus_read_registers(ctx, 0x012C, 2, read_registers);
+ 
+        // print temperature / humidity
+        printf("%d.%d C\n",  read_registers[0]/100, read_registers[0]%100); // 2545 => 25.45 C
+        printf("%d.%d %%\n", read_registers[1]/100, read_registers[1]%100); // 5319 => 53.19 %
+ 
+        // 0x06 기능 코드 (Preset Single Register)
+        // 0x0000 : 주소(슬레이브 주소 변경) / 245 : 기존 242에서 245로 수정
+        modbus_write_register(ctx, 0x0000, 245);
+ 
+        // 변경된 슬레이브 주소로 재연결
+        modbus_close(ctx);
+        modbus_set_slave(ctx, 245);
+        if (modbus_connect(ctx) == -1) {
+                fprintf(stderr, "Unable to connect %s\n", modbus_strerror(errno));
+                modbus_free(ctx);
+                return -1;
+        }
+ 
+        // 0x04 기능 코드 (Read Input Registers)
+        // 설정된 슬레이브 주소값을 읽기
+        modbus_read_input_registers(ctx, 0x0000, 1, read_registers);
+        printf("Slave Address : %d\n", read_registers[0]);
+ 
+        modbus_close(ctx);
+        modbus_free(ctx);
+        return 0;
+}
